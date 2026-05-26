@@ -114,6 +114,143 @@ def fetch_steam_deals():
         },
     ]
 
+# ========== 爬取即将发售游戏 ==========
+def fetch_upcoming_games():
+    """从 Steam 热门即将推出页面爬取真实的即将发售游戏列表"""
+    import time
+    import re
+    from datetime import datetime, timedelta
+    
+    url = "https://store.steampowered.com/search/?filter=popularnew&category1=998&os=win"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate',
+        'Connection': 'keep-alive',
+    }
+    
+    try:
+        resp = requests.get(url, headers=headers, timeout=30)
+        resp.raise_for_status()
+        html = resp.text
+    except Exception as e:
+        print(f"  爬取即将发售页面失败: {e}")
+        return []
+    
+    # 解析 HTML：Steam 搜索结果页面中，每个游戏是一个 <a class="search_result_row"> 元素
+    # 提取：名称、appid、发售日期、价格
+    games = []
+    
+    # 用正则提取所有搜索结果行
+    # 每个游戏块的 pattern: <a class="search_result_row" ... href=".../app/APPID/...">
+    result_pattern = r'<a class="search_result_row"[^>]*href="[^"]*?/app/(\d+)/[^"]*"[^>]*>(.*?)</a>'
+    result_blocks = re.findall(result_pattern, html, re.DOTALL)
+    
+    print(f"  找到 {len(result_blocks)} 个游戏结果块")
+    
+    for appid_str, block in result_blocks:
+        appid = int(appid_str)
+        
+        # 提取游戏名称
+        name_match = re.search(r'<span class="title">([^<]+)</span>', block, re.DOTALL)
+        if not name_match:
+            continue
+        name = name_match.group(1).strip()
+        
+        # 提取发售日期
+        # Steam 即将推出页面的日期格式：<div class="search_released">2026年6月</div>
+        # 或 <div class="search_released">2026年5月28日</div>
+        date_match = re.search(r'<div class="search_released">([^<]+)</div>', block, re.DOTALL)
+        release_date_str = date_match.group(1).strip() if date_match else ""
+        
+        # 过滤：只保留未来发售的游戏
+        # 解析日期字符串，判断是否在 2026-05-26 之后
+        release_dt = None
+        if release_date_str:
+            # 尝试解析各种格式
+            # "2026年6月" → 视为 2026-06-01
+            # "2026年5月28日" → 2026-05-28
+            # "2026年第三季度" → 跳过
+            # "即将推出" → 跳过
+            # "已发售" / "2024年..." → 跳过
+            try:
+                if "年" in release_date_str and "月" in release_date_str:
+                    if "日" in release_date_str:
+                        # "2026年5月28日"
+                        m = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', release_date_str)
+                        if m:
+                            release_dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                    else:
+                        # "2026年6月"
+                        m = re.search(r'(\d{4})年(\d{1,2})月', release_date_str)
+                        if m:
+                            release_dt = datetime(int(m.group(1)), int(m.group(2)), 1)
+            except Exception:
+                release_dt = None
+        
+        # 跳过已发售或日期不明的游戏
+        if not release_dt or release_dt < datetime(2026, 5, 26):
+            continue
+        
+        # 提取价格（如果有预购价格）
+        price_match = re.search(r'<span class="discount_final_price">([^<]+)</span>', block, re.DOTALL)
+        price = price_match.group(1).strip() if price_match else ""
+        
+        # 如果没有预购价格，检查是否有 "即将推出" 或 "免费" 标签
+        if not price:
+            free_match = re.search(r'<div class="search_free">([^<]+)</div>', block, re.DOTALL)
+            if free_match:
+                price = "免费"
+        
+        games.append({
+            "name": name,
+            "appid": appid,
+            "release_date": release_date_str,
+            "release_dt": release_dt,
+            "price": price,  # 预购价格，空字符串表示暂无价格
+            "steam_url": f"https://store.steampowered.com/app/{appid}/",
+        })
+        
+        if len(games) >= 8:  # 最多取 8 款
+            break
+    
+    # 按发售日期排序
+    games.sort(key=lambda g: g["release_dt"])
+    
+    print(f"  成功解析 {len(games)} 款即将发售游戏")
+    for g in games:
+        print(f"    - {g['name']} | {g['release_date']} | {g['price'] or '暂无价格'}")
+    
+    return games
+
+
+def fetch_upcoming_game_details(appid):
+    """获取单个即将发售游戏的详细信息（描述简介）"""
+    url = f"https://store.steampowered.com/app/{appid}/"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        html = resp.text
+        
+        # 提取游戏描述
+        desc_match = re.search(r'<meta name="description" content="([^"]*)"', html)
+        description = desc_match.group(1).strip() if desc_match else ""
+        
+        # 清理描述
+        description = re.sub(r'\s+', ' ', description)
+        if len(description) > 120:
+            description = description[:117] + "..."
+        
+        return description
+    except Exception as e:
+        print(f"  获取游戏详情 {appid}: {e}")
+        return ""
+
+
 # ========== 小黑盒 API 获取游戏图片 ==========
 def fetch_xiaoheihe_images(appids):
     """从小黑盒 API 获取游戏图片"""
@@ -280,8 +417,12 @@ def search_psn(game_name):
         return None
 
 # ========== 生成 HTML ==========
-def generate_html(steam_games, xiaoheihe_data, psn_data, new_hot_games):
-    """生成完整的 HTML 页面"""
+def generate_html(steam_games, xiaoheihe_data, psn_data, new_hot_games, upcoming_games=None):
+    """生成完整的 HTML 页面
+    
+    Args:
+        upcoming_games: 即将发售游戏列表，由 fetch_upcoming_games() 返回
+    """
     
     # 读取模板或直接生成
     html_template = """<!DOCTYPE html>
@@ -621,52 +762,62 @@ document.getElementById('lightbox').addEventListener('click', function(e) {
     
     # 生成即将发售卡片
     upcoming_cards = []
-    upcoming_games = [
-        {
-            "name": "GTA VI",
-            "description": "重返罪恶都市，Rockstar 十年磨一剑",
-            "release": "2025年秋季",
-            "platforms": ["PS5", "Xbox Series X|S"],
-            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202410/1519/1c8b8b9d3282d0d0a3a3a3a3a3a3a3a3.png",
-        },
-        {
-            "name": "怪物猎人：荒野",
-            "description": "开放世界怪物猎人，无缝大地图探索",
-            "release": "2025年",
-            "platforms": ["PS5", "Xbox Series X|S", "PC"],
-            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202312/0115/1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a.png",
-        },
-        {
-            "name": "最终幻想 VII 重生",
-            "description": "FF7重制版第二章，克劳德与伙伴们的旅程继续",
-            "release": "2024年2月29日",
-            "platforms": ["PS5"],
-            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202306/1212/2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b.png",
-        },
-        {
-            "name": "黑神话：悟空",
-            "description": "国产3A动作RPG，西游题材魂like",
-            "release": "2024年8月20日",
-            "platforms": ["PS5", "Xbox Series X|S", "PC"],
-            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202308/0714/3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c.png",
-        },
-    ]
+    # upcoming_games 由 main() 传入，格式：
+    # [{"name", "appid", "release_date", "price", "steam_url", "description", "psn_price", "eshop_price"}, ...]
+    if not upcoming_games:
+        upcoming_games = []
     
     for game in upcoming_games:
+        appid = game.get("appid", 0)
+        img_data = xiaoheihe_data.get(appid, {})
+        img_url = img_data.get("capsule_image", img_data.get("header_image", ""))
+        if not img_url:
+            img_url = f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{appid}/capsule_231x87.jpg"
+        
+        description = game.get("description", "")
+        release_date = game.get("release_date", "")
+        steam_price = game.get("price", "")  # 预购价格，空表示暂无
+        
+        # 三平台价格
+        psn_price = game.get("psn_price", "未查")
+        eshop_price = game.get("eshop_price", "未查")
+        
+        # Steam 价格显示
+        steam_price_display = f"预购: {steam_price}" if steam_price else "暂无预购价"
+        if steam_price:
+            steam_price_html = f'<span class="final-price">{steam_price}</span>'
+        else:
+            steam_price_html = f'<span style="color:#8899aa;font-size:0.85rem;">{steam_price_display}</span>'
+        
         card = f"""
     <div class="game-card">
-      <img class="card-img" src="{game['img']}" alt="{game['name']}" onclick="openLightbox(this.src)">
+      <img class="card-img" src="{img_url}" alt="{game['name']}" onclick="openLightbox(this.src)">
       <div class="card-body">
         <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
           <span class="platform-tag ps">PS5</span>
-          <span class="platform-tag steam">PC</span>
+          <span class="platform-tag switch">Switch</span>
         </div>
         <div class="card-title">{game['name']}</div>
-        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">{game['description']}</p>
+        <p style="font-size:0.8rem;color:#8899aa;margin-bottom:0.3rem;">📅 发售: {release_date}</p>
+        <p style="font-size:0.82rem;color:#aabbc4;margin-bottom:0.5rem;line-height:1.4;">{description}</p>
         <div class="card-price">
-          <span class="final-price">发售日: {game['release']}</span>
+          {steam_price_html}
         </div>
-        <a href="#" class="buy-btn">即将发售</a>
+        <!-- 三平台比价小表格 -->
+        <table style="width:100%;margin-top:0.5rem;font-size:0.75rem;border-collapse:collapse;">
+          <tr style="color:#667788;">
+            <td style="padding:0.2rem 0.3rem;">Steam</td>
+            <td style="padding:0.2rem 0.3rem;">PSN 港服</td>
+            <td style="padding:0.2rem 0.3rem;">Switch 港服</td>
+          </tr>
+          <tr>
+            <td style="padding:0.2rem 0.3rem;color:#66c0f4;">{steam_price_display}</td>
+            <td style="padding:0.2rem 0.3rem;color:#0072ce;">{psn_price}</td>
+            <td style="padding:0.2rem 0.3rem;color:#e60012;">{eshop_price}</td>
+          </tr>
+        </table>
+        <a href="{game.get('steam_url', '#')}" target="_blank" class="buy-btn">Steam 页面</a>
       </div>
     </div>"""
         upcoming_cards.append(card)
@@ -744,20 +895,45 @@ def main():
     steam_games = fetch_steam_deals()
     appids = [game["appid"] for game in steam_games]
     
-    # 2. 获取小黑盒图片
-    print("2. 获取小黑盒游戏图片...")
-    xiaoheihe_data = fetch_xiaoheihe_images(appids)
+    # 2. 获取即将发售游戏（新增）
+    print("2. 获取即将发售游戏...")
+    upcoming_games = fetch_upcoming_games()
     
-    # 3. 获取 PSN 价格
-    print("3. 获取 PSN 港服价格...")
+    # 将即将发售游戏的 appid 也加入小黑盒图片获取
+    upcoming_appids = [g["appid"] for g in upcoming_games]
+    all_appids = list(set(appids + upcoming_appids))
+    
+    # 3. 获取小黑盒图片
+    print("3. 获取小黑盒游戏图片...")
+    xiaoheihe_data = fetch_xiaoheihe_images(all_appids)
+    
+    # 4. 获取 PSN 价格（Steam 折扣游戏 + 即将发售游戏）
+    print("4. 获取 PSN 港服价格...")
     psn_data = {}
-    for game in steam_games:
-        result = search_psn(game["name"])
+    all_game_names = [g["name"] for g in steam_games] + [g["name"] for g in upcoming_games]
+    for name in all_game_names:
+        result = search_psn(name)
         if result:
-            psn_data[game["name"]] = result
+            psn_data[name] = result
         time.sleep(1)  # 礼貌延迟
     
-    # 4. 新游数据（示例）
+    # 5. 为即将发售游戏补充描述和 PSN 价格
+    print("5. 补充即将发售游戏详情...")
+    for game in upcoming_games:
+        # 获取游戏描述（如果还没有）
+        if not game.get("description"):
+            game["description"] = fetch_upcoming_game_details(game["appid"])
+        
+        # 获取 PSN 港服价格
+        psn_result = psn_data.get(game["name"], {})
+        game["psn_price"] = psn_result.get("price", "未查") if psn_result else "未查"
+        
+        # Switch 港服价格（占位，后续可接入真实 API）
+        game["eshop_price"] = "待查"
+        
+        time.sleep(0.3)
+    
+    # 6. 新游数据（近期已发售热门）
     new_hot_games = [
         {
             "name": "极限竞速：地平线6",
@@ -809,20 +985,20 @@ def main():
         },
     ]
     
-    # 5. 生成 HTML
-    print("4. 生成 HTML 页面...")
-    html_content = generate_html(steam_games, xiaoheihe_data, psn_data, new_hot_games)
+    # 7. 生成 HTML（传入即将发售游戏数据）
+    print("6. 生成 HTML 页面...")
+    html_content = generate_html(steam_games, xiaoheihe_data, psn_data, new_hot_games, upcoming_games)
     
-    # 6. 写入文件
+    # 8. 写入文件
     with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
         f.write(html_content)
     
     print(f"✅ 页面生成完成：{OUTPUT_HTML}")
-    print(f"📊 统计：{len(steam_games)} 款 Steam 折扣游戏，{len(new_hot_games)} 款新游")
+    print(f"📊 统计：{len(steam_games)} 款 Steam 折扣游戏，{len(new_hot_games)} 款新游，{len(upcoming_games)} 款即将发售")
     
-    # 7. 推送到 GitHub（在 GitHub Actions 中自动执行）
+    # 9. 推送到 GitHub（在 GitHub Actions 中自动执行）
     if os.getenv("GITHUB_ACTIONS"):
-        print("7. 检测到 GitHub Actions 环境，准备提交更改...")
+        print("9. 检测到 GitHub Actions 环境，准备提交更改...")
         # 这里可以添加 git commit & push 逻辑
         # 但通常由 workflow 的 actions/checkout + actions/deploy-pages 处理
 
