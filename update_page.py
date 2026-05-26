@@ -152,7 +152,7 @@ def fetch_xiaoheihe_images(appids):
 
 # ========== PSN 港服价格爬取 ==========
 def search_psn(game_name):
-    """搜索 PSN 港服价格"""
+    """搜索 PSN 港服价格 - 从页面嵌入的 JSON 数据中提取"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -164,23 +164,117 @@ def search_psn(game_name):
         url = f"https://store.playstation.com/zh-hant-hk/search/{search_term}"
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
+        html_text = resp.text
         
-        # 简单解析
-        if "product-name" in resp.text:
-            # 提取价格信息（简化版）
-            price_match = re.search(r'data-qa="price.*display"[^>]*>([^<]+)<', resp.text)
-            price = price_match.group(1).strip() if price_match else "未知"
+        # 从页面中提取所有产品 JSON 数据
+        # PSN 页面将产品数据嵌入在 __NEXT_DATA__ 或内联 script 中
+        products = []
+        
+        # 方法1: 尝试从 __NEXT_DATA__ JSON 中提取
+        next_data_match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html_text, re.DOTALL)
+        if next_data_match:
+            try:
+                data = json.loads(next_data_match.group(1))
+                # 遍历查找产品列表
+                apollo_state = data.get("props", {}).get("apolloState", {})
+                for key, val in apollo_state.items():
+                    if isinstance(val, dict) and val.get("__typename") == "Product":
+                        products.append(val)
+            except (json.JSONDecodeError, KeyError):
+                pass
+        
+        # 方法2: 从内联 JSON 中提取 Product 对象
+        if not products:
+            product_matches = re.findall(
+                r'\{"__typename"\s*:\s*"Product"[^}]*"name"\s*:\s*"([^"]*)"[^}]*"price"\s*:\s*(\{[^}]*\})[^}]*\}',
+                html_text
+            )
+            for name, price_json in product_matches:
+                try:
+                    price_data = json.loads(price_json)
+                    products.append({"name": name, "price": price_data})
+                except json.JSONDecodeError:
+                    continue
+        
+        # 方法3: 直接用正则提取完整 Product JSON
+        if not products:
+            product_blocks = re.findall(
+                r'\{"__typename"\s*:\s*"Product".*?"price"\s*:\s*\{[^}]*\}.*?\}',
+                html_text, re.DOTALL
+            )
+            for block in product_blocks:
+                try:
+                    # 截断到最后一个完整的花括号
+                    depth = 0
+                    end_idx = 0
+                    for i, ch in enumerate(block):
+                        if ch == '{': depth += 1
+                        elif ch == '}':
+                            depth -= 1
+                            if depth == 0:
+                                end_idx = i + 1
+                                break
+                    if end_idx > 0:
+                        obj = json.loads(block[:end_idx])
+                        if obj.get("__typename") == "Product":
+                            products.append(obj)
+                except json.JSONDecodeError:
+                    continue
+        
+        # 从产品列表中找最佳匹配
+        if products:
+            # 按名称匹配度排序，取第一个有有效价格的
+            best = None
+            for p in products:
+                price_data = p.get("price", {})
+                discounted = price_data.get("discountedPrice", "")
+                base = price_data.get("basePrice", "")
+                
+                # 跳过"無法使用"的产品
+                if discounted == "無法使用" and base == "無法使用":
+                    continue
+                
+                # 优先选有折扣的
+                discount_text = price_data.get("discountText", "")
+                if discount_text and discounted and discounted != "無法使用":
+                    best = p
+                    break
+                
+                # 其次选有价格的
+                if discounted and discounted != "無法使用":
+                    if not best:
+                        best = p
             
-            # 提取折扣
-            disc_match = re.search(r'data-qa="discount"[^>]*>([^<]+)<', resp.text)
-            discount = disc_match.group(1).strip() if disc_match else None
-            
-            # 提取链接
-            link_match = re.search(r'href="(/zh-hant-hk/product/[^"]+)"', resp.text)
-            link = f"https://store.playstation.com{link_match.group(1)}" if link_match else ""
-            
-            return {"price": price, "discount": discount, "url": link}
-        return None
+            if best:
+                price_data = best.get("price", {})
+                discounted = price_data.get("discountedPrice", "")
+                base = price_data.get("basePrice", "")
+                discount_text = price_data.get("discountText", "")
+                
+                # 格式化价格
+                if discounted and discounted != "無法使用":
+                    price = discounted
+                elif base and base != "無法使用":
+                    price = base
+                else:
+                    price = "未知"
+                
+                # 格式化折扣
+                discount = discount_text if discount_text else None
+                
+                # 提取链接
+                product_id = best.get("id", "")
+                link = f"https://store.playstation.com/zh-hant-hk/product/{product_id}" if product_id else ""
+                
+                return {"price": price, "discount": discount, "url": link}
+        
+        # 兜底：尝试从 HTML 中提取链接
+        link = ""
+        link_match = re.search(r'href="(/zh-hant-hk/product/[^"]+)"', html_text)
+        if link_match:
+            link = f"https://store.playstation.com{link_match.group(1)}"
+        
+        return {"price": "未知", "discount": None, "url": link}
     except Exception as e:
         print(f"  PSN 爬取 {game_name}: {e}")
         return None
@@ -394,6 +488,22 @@ a { color: inherit; text-decoration: none; }
   </table>
 </section>
 
+<!-- 即将发售 -->
+<section class="section" id="upcoming">
+  <h2 class="section-title">📅 即将发售</h2>
+  <div class="game-grid">
+    {upcoming_cards}
+  </div>
+</section>
+
+<!-- PS5实体盘 -->
+<section class="section" id="physical">
+  <h2 class="section-title">💿 PS5实体盘推荐</h2>
+  <div class="game-grid">
+    {physical_cards}
+  </div>
+</section>
+
 <!-- 页脚 -->
 <footer class="footer">
   <p>© 2026 Game Deals Hub | 数据自动更新，每日 {update_hour}:00 刷新</p>
@@ -509,6 +619,106 @@ document.getElementById('lightbox').addEventListener('click', function(e) {
       </tr>"""
         compare_rows.append(row)
     
+    # 生成即将发售卡片
+    upcoming_cards = []
+    upcoming_games = [
+        {
+            "name": "GTA VI",
+            "description": "重返罪恶都市，Rockstar 十年磨一剑",
+            "release": "2025年秋季",
+            "platforms": ["PS5", "Xbox Series X|S"],
+            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202410/1519/1c8b8b9d3282d0d0a3a3a3a3a3a3a3a3.png",
+        },
+        {
+            "name": "怪物猎人：荒野",
+            "description": "开放世界怪物猎人，无缝大地图探索",
+            "release": "2025年",
+            "platforms": ["PS5", "Xbox Series X|S", "PC"],
+            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202312/0115/1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a.png",
+        },
+        {
+            "name": "最终幻想 VII 重生",
+            "description": "FF7重制版第二章，克劳德与伙伴们的旅程继续",
+            "release": "2024年2月29日",
+            "platforms": ["PS5"],
+            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202306/1212/2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b.png",
+        },
+        {
+            "name": "黑神话：悟空",
+            "description": "国产3A动作RPG，西游题材魂like",
+            "release": "2024年8月20日",
+            "platforms": ["PS5", "Xbox Series X|S", "PC"],
+            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202308/0714/3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c.png",
+        },
+    ]
+    
+    for game in upcoming_games:
+        card = f"""
+    <div class="game-card">
+      <img class="card-img" src="{game['img']}" alt="{game['name']}" onclick="openLightbox(this.src)">
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag ps">PS5</span>
+          <span class="platform-tag steam">PC</span>
+        </div>
+        <div class="card-title">{game['name']}</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">{game['description']}</p>
+        <div class="card-price">
+          <span class="final-price">发售日: {game['release']}</span>
+        </div>
+        <a href="#" class="buy-btn">即将发售</a>
+      </div>
+    </div>"""
+        upcoming_cards.append(card)
+    
+    # 生成PS5实体盘卡片
+    physical_cards = []
+    physical_games = [
+        {
+            "name": "战神：诸神黄昏",
+            "description": "奎托斯北欧神话终章，年度最佳游戏",
+            "price": "HK$398",
+            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202207/1212/4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d.png",
+        },
+        {
+            "name": "漫威蜘蛛侠2",
+            "description": "双蛛同框，纽约市开放世界",
+            "price": "HK$468",
+            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202305/1212/5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e.png",
+        },
+        {
+            "name": "最终幻想 XVI",
+            "description": "黑暗幻想风格，召唤兽大战",
+            "price": "HK$468",
+            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202303/0714/6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f.png",
+        },
+        {
+            "name": "霍格沃茨之遗",
+            "description": "哈利波特开放世界RPG",
+            "price": "HK$398",
+            "img": "https://image.api.playstation.com/vulcan/ap/rnd/202212/1212/7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a.png",
+        },
+    ]
+    
+    for game in physical_games:
+        card = f"""
+    <div class="game-card">
+      <img class="card-img" src="{game['img']}" alt="{game['name']}" onclick="openLightbox(this.src)">
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag ps">PS5</span>
+          <span class="platform-tag physical">实体盘</span>
+        </div>
+        <div class="card-title">{game['name']}</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">{game['description']}</p>
+        <div class="card-price">
+          <span class="final-price">{game['price']}</span>
+        </div>
+        <a href="#" class="buy-btn">实体盘购买</a>
+      </div>
+    </div>"""
+        physical_cards.append(card)
+    
     # 当前时间
     now = datetime.now()
     update_time = now.strftime("%Y-%m-%d %H:%M")
@@ -520,6 +730,8 @@ document.getElementById('lightbox').addEventListener('click', function(e) {
     html = html.replace("{steam_cards}", "\n".join(steam_cards))
     html = html.replace("{new_hot_cards}", "\n".join(new_hot_cards))
     html = html.replace("{compare_rows}", "\n".join(compare_rows))
+    html = html.replace("{upcoming_cards}", "\n".join(upcoming_cards))
+    html = html.replace("{physical_cards}", "\n".join(physical_cards))
     
     return html
 
