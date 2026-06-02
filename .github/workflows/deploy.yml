@@ -1,58 +1,49 @@
-name: 每日更新游戏折扣页面
+name: Deploy to GitHub Pages
 
 on:
+  push:
+    branches: [ main ]
   schedule:
-    # 每天北京时间 8:00 (UTC+8)
+    # 每天 UTC 0:00 运行（北京时间 8:00）
     - cron: '0 0 * * *'
-  # 也支持手动触发
-  workflow_dispatch:
-
-# 设置权限
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-# 并发控制
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
+    
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 设置 Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - name: 安装依赖
-        run: pip install -r requirements.txt
-
-      - name: 运行更新脚本
-        run: python update_page.py
-        env:
-          GITHUB_ACTIONS: true
-
-      - name: 设置 Pages
-        uses: actions/configure-pages@v5
-
-      - name: 上传构建产物
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: '.'
-          # 只上传需要的文件
-          # index.html 是必须的
-
-      - name: 部署到 GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+        
+    - name: Run update script
+      run: python update_page.py
+      env:
+        GITHUB_ACTIONS: true
+        
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./
+        publish_branch: gh-pages
+        keep_files: false
+        force_orphan: true
+        
+    - name: Notify success
+      if: success()
+      run: |
+        echo "✅ 页面部署完成！"
+        echo "访问地址：https://${{ github.repository_owner }}.github.io/$(echo ${{ github.repository }} | cut -d'/' -f2)/"
