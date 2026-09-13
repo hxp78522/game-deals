@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<meta name="theme-color" content="#0a0e17">
+<meta name="description" content="游戏折扣与最新上线推荐，每日更新 Steam、PSN 港服、Switch 港服价格对比">
+<title>游戏折扣与最新上线推荐 | Game Deals Hub</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #0a0e17;
+  color: #e0e0e0;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+a { color: inherit; text-decoration: none; }
+
+/* 导航 */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: rgba(10,14,23,0.95); backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid #1a2235;
+  padding: 0 2rem;
+  display: flex; align-items: center; height: 60px;
+}
+.nav-brand {
+  font-size: 1.3rem; font-weight: 700; color: #00d4ff;
+  margin-right: 2rem; letter-spacing: 1px; white-space: nowrap;
+}
+.nav-links { display: flex; gap: 0.5rem; }
+.nav-links a {
+  padding: 0.4rem 1rem; border-radius: 6px; font-size: 0.9rem;
+  color: #8899aa; transition: all 0.2s; white-space: nowrap;
+}
+.nav-links a:hover, .nav-links a.active { color: #fff; background: rgba(0,212,255,0.1); }
+
+/* Hero */
+.hero {
+  margin-top: 60px;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1a1a2e 50%, #16213e 100%);
+  padding: 4rem 2rem; text-align: center;
+  border-bottom: 1px solid #1a2235;
+}
+.hero h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; }
+.hero h1 span { color: #00d4ff; }
+.hero p { color: #8899aa; font-size: 1.1rem; max-width: 600px; margin: 0 auto; }
+
+/* 通用区域 */
+.section { padding: 3rem 2rem; max-width: 1400px; margin: 0 auto; }
+.section-title {
+  font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.section-title::before {
+  content: ''; display: inline-block; width: 4px; height: 24px;
+  background: #00d4ff; border-radius: 2px;
+}
+
+/* 平台标签 */
+.platform-tag {
+  display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+  font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+}
+.platform-tag.steam { background: rgba(23,101,145,0.3); color: #66c0f4; }
+.platform-tag.ps { background: rgba(0,70,190,0.3); color: #0072ce; }
+.platform-tag.switch { background: rgba(230,0,18,0.2); color: #e60012; }
+.platform-tag.physical { background: rgba(255,170,0,0.2); color: #ffaa00; }
+
+/* 折扣标签 */
+.discount-badge {
+  display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px;
+  font-size: 0.8rem; font-weight: 700;
+}
+.discount-badge.hot { background: #e74c3c; color: #fff; }
+.discount-badge.good { background: #f39c12; color: #fff; }
+.discount-badge.ok { background: #27ae60; color: #fff; }
+
+/* 游戏卡片网格 */
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.game-card {
+  background: #111827; border-radius: 12px; overflow: hidden;
+  border: 1px solid #1a2235; transition: transform 0.2s, box-shadow 0.2s;
+  position: relative; display: flex; flex-direction: column;
+}
+.game-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(0,212,255,0.15); }
+
+/* 图片容器 */
+.game-card .card-img-wrap {
+  position: relative; width: 100%; height: 160px; overflow: hidden;
+  background: linear-gradient(135deg, #0d1b2a, #16213e);
+}
+.game-card .card-img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.game-card .card-img-fallback {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #0d1b2a, #16213e);
+  font-size: 2rem; color: #334466;
+}
+.game-card .card-img-fallback.hidden { display: none; }
+
+.game-card .card-body { padding: 1rem; flex: 1; display: flex; flex-direction: column; }
+.game-card .card-title {
+  font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;
+  line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.game-card .card-meta { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+.game-card .card-price {
+  display: flex; align-items: center; gap: 0.5rem; margin-top: auto;
+}
+.game-card .original-price { text-decoration: line-through; color: #666; font-size: 0.85rem; }
+.game-card .final-price { font-size: 1.2rem; font-weight: 700; color: #00d4ff; }
+.game-card .buy-btn {
+  display: block; width: 100%; padding: 0.6rem; margin-top: 0.8rem;
+  background: linear-gradient(135deg, #00d4ff, #0099cc); color: #000;
+  border: none; border-radius: 6px; font-weight: 600; cursor: pointer;
+  text-align: center; font-size: 0.9rem; transition: opacity 0.2s;
+}
+.game-card .buy-btn:hover { opacity: 0.85; }
+
+/* 比价表格 */
+.price-compare-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.price-compare { width: 100%; border-collapse: collapse; margin-top: 1rem; min-width: 500px; }
+.price-compare th {
+  padding: 0.8rem; background: #111827; color: #8899aa;
+  font-size: 0.85rem; text-transform: uppercase; border-bottom: 1px solid #1a2235;
+  white-space: nowrap;
+}
+.price-compare td { padding: 0.8rem; border-bottom: 1px solid #111827; text-align: center; white-space: nowrap; }
+
+/* 页脚 */
+.footer {
+  text-align: center; padding: 2rem; color: #556677; font-size: 0.85rem;
+  border-top: 1px solid #1a2235; margin-top: 3rem;
+}
+
+/* 图片灯箱 */
+.lightbox {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center;
+}
+.lightbox.active { display: flex; }
+.lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+.lightbox .close-btn {
+  position: absolute; top: 2rem; right: 2rem; background: none; border: none;
+  color: #fff; font-size: 2rem; cursor: pointer;
+}
+
+/* ========== 响应式 ========== */
+
+/* 平板 (iPad / Android tablet) */
+@media (max-width: 1024px) {
+  .nav { padding: 0 1.5rem; }
+  .nav-brand { font-size: 1.1rem; margin-right: 1rem; }
+  .nav-links a { padding: 0.35rem 0.7rem; font-size: 0.8rem; }
+  .hero { padding: 3rem 1.5rem; }
+  .hero h1 { font-size: 2rem; }
+  .section { padding: 2rem 1.5rem; }
+  .game-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.2rem; }
+  .game-card .card-img-wrap { height: 140px; }
+}
+
+/* 手机横屏 / 小平板 */
+@media (max-width: 768px) {
+  .nav { padding: 0 0.8rem; height: 50px; flex-wrap: nowrap; }
+  .nav-brand { font-size: 1rem; margin-right: 0.5rem; letter-spacing: 0; }
+  .nav-links { gap: 0.2rem; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-shrink: 1; }
+  .nav-links a { padding: 0.3rem 0.5rem; font-size: 0.75rem; border-radius: 4px; flex-shrink: 0; }
+  .hero { margin-top: 50px; padding: 2rem 1rem; }
+  .hero h1 { font-size: 1.5rem; }
+  .hero p { font-size: 0.9rem; }
+  .section { padding: 1.5rem 1rem; }
+  .section-title { font-size: 1.2rem; }
+  .game-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.8rem; }
+  .game-card { border-radius: 8px; }
+  .game-card .card-img-wrap { height: 110px; }
+  .game-card .card-body { padding: 0.7rem; }
+  .game-card .card-title { font-size: 0.85rem; }
+  .game-card .final-price { font-size: 1rem; }
+  .game-card .buy-btn { font-size: 0.8rem; padding: 0.5rem; }
+  .lightbox .close-btn { top: 1rem; right: 1rem; font-size: 1.5rem; }
+}
+
+/* 手机竖屏 */
+@media (max-width: 480px) {
+  .nav { height: 44px; }
+  .nav-brand { display: none; }
+  .nav-links { justify-content: center; gap: 0; }
+  .nav-links a { padding: 0.25rem 0.45rem; font-size: 0.7rem; }
+  .hero { margin-top: 44px; padding: 1.5rem 0.8rem; }
+  .hero h1 { font-size: 1.2rem; }
+  .hero p { font-size: 0.8rem; }
+  .section { padding: 1rem 0.6rem; }
+  .section-title { font-size: 1rem; margin-bottom: 1rem; }
+  .game-grid { grid-template-columns: repeat(2, 1fr); gap: 0.6rem; }
+  .game-card .card-img-wrap { height: 100px; }
+  .game-card .card-body { padding: 0.5rem; }
+  .game-card .card-title { font-size: 0.78rem; -webkit-line-clamp: 2; }
+  .game-card .card-meta { gap: 0.3rem; }
+  .platform-tag { font-size: 0.6rem; padding: 0.1rem 0.3rem; }
+  .game-card .final-price { font-size: 0.9rem; }
+  .game-card .buy-btn { font-size: 0.75rem; padding: 0.4rem; margin-top: 0.5rem; }
+  .price-compare { font-size: 0.75rem; min-width: 400px; }
+  .price-compare th, .price-compare td { padding: 0.5rem 0.3rem; }
+  .footer { padding: 1.5rem 1rem; font-size: 0.75rem; }
+  .lightbox img { max-width: 95%; max-height: 80%; }
+}
+
+/* 超小屏幕 */
+@media (max-width: 360px) {
+  .game-grid { grid-template-columns: 1fr; }
+  .game-card .card-img-wrap { height: 140px; }
+}
+</style>
+</head>
+<body>
+
+<!-- 导航 -->
+<nav class="nav">
+  <div class="nav-brand">🎮 GAME DEALS</div>
+  <div class="nav-links">
+    <a href="#hero" class="active">首页</a>
+    <a href="#discounts">今日折扣</a>
+    <a href="#new-hot">近期火爆新游</a>
+    <a href="#compare">三平台比价</a>
+    <a href="#upcoming">即将发售</a>
+    <a href="#physical">PS5实体盘</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero" id="hero">
+  <h1>🎮 游戏折扣与最新上线 <span>推荐站</span></h1>
+  <p>实时爬取 Steam / PSN 港服 / Switch eShop 港服三大平台折扣信息，帮你找到最值得买的游戏</p>
+  <p style="margin-top:1rem;color:#556677;font-size:0.85rem;">数据抓取时间：2026-09-13 02:05 | 数据来源：Steam Store / PSN 港服 / 小黑盒 API</p>
+</section>
+
+<!-- 今日折扣精选 -->
+<section class="section" id="discounts">
+  <h2 class="section-title">🔥 今日折扣精选</h2>
+  <div class="game-grid" id="discount-grid">
+    
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://cdn.akamai.steamstatic.com/steam/apps/1142710/header.jpg?t=1612364535", "https://cdn.akamai.steamstatic.com/steam/apps/1142710/capsule_231x87.jpg?t=1612364535", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1142710/header.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1142710/capsule_231x87.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1142710/capsule_616x353.jpg"]'>
+        <img class="card-img" src="https://cdn.akamai.steamstatic.com/steam/apps/1142710/header.jpg?t=1612364535" alt="全面战争：战锤3" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+          <span class="discount-badge hot">-85%</span>
+        </div>
+        <div class="card-title">全面战争：战锤3</div>
+        <div class="card-price">
+          <span class="original-price">¥298</span>
+          <span class="final-price">¥45</span>
+        </div>
+        <a href="https://store.steampowered.com/app/1142710/" target="_blank" class="buy-btn">前往 Steam 购买</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://steamcdn-a.akamaihd.net/steam/apps/1222140/header.jpg?t=1590739710", "https://steamcdn-a.akamaihd.net/steam/apps/1222140/capsule_231x87.jpg?t=1590739710", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1222140/header.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1222140/capsule_231x87.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1222140/capsule_616x353.jpg"]'>
+        <img class="card-img" src="https://steamcdn-a.akamaihd.net/steam/apps/1222140/header.jpg?t=1590739710" alt="底特律：化身为人" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+          <span class="discount-badge hot">-80%</span>
+        </div>
+        <div class="card-title">底特律：化身为人</div>
+        <div class="card-price">
+          <span class="original-price">¥136</span>
+          <span class="final-price">¥27</span>
+        </div>
+        <a href="https://store.steampowered.com/app/1222140/" target="_blank" class="buy-btn">前往 Steam 购买</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://cdn.max-c.com/heybox/game/header/233860_qWkjT.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/233860/header.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/233860/capsule_231x87.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/233860/capsule_616x353.jpg"]'>
+        <img class="card-img" src="https://cdn.max-c.com/heybox/game/header/233860_qWkjT.jpg" alt="Kenshi" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+          <span class="discount-badge hot">-72%</span>
+        </div>
+        <div class="card-title">Kenshi</div>
+        <div class="card-price">
+          <span class="original-price">¥90</span>
+          <span class="final-price">¥25</span>
+        </div>
+        <a href="https://store.steampowered.com/app/233860/" target="_blank" class="buy-btn">前往 Steam 购买</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://cdn.akamai.steamstatic.com/steam/apps/2183900/header.jpg?t=1670592538", "https://cdn.akamai.steamstatic.com/steam/apps/2183900/capsule_231x87.jpg?t=1670592538", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/2183900/header.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/2183900/capsule_231x87.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/2183900/capsule_616x353.jpg"]'>
+        <img class="card-img" src="https://cdn.akamai.steamstatic.com/steam/apps/2183900/header.jpg?t=1670592538" alt="Warhammer 40,000: 星际战士2" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+          <span class="discount-badge hot">-70%</span>
+        </div>
+        <div class="card-title">Warhammer 40,000: 星际战士2</div>
+        <div class="card-price">
+          <span class="original-price">¥249</span>
+          <span class="final-price">¥75</span>
+        </div>
+        <a href="https://store.steampowered.com/app/2183900/" target="_blank" class="buy-btn">前往 Steam 购买</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://steamcdn-a.akamaihd.net/steam/apps/1304930/header.jpg?t=1592088522", "https://steamcdn-a.akamaihd.net/steam/apps/1304930/capsule_231x87.jpg?t=1592088522", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1304930/header.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1304930/capsule_231x87.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1304930/capsule_616x353.jpg"]'>
+        <img class="card-img" src="https://steamcdn-a.akamaihd.net/steam/apps/1304930/header.jpg?t=1592088522" alt="The Outlast Trials" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+          <span class="discount-badge hot">-70%</span>
+        </div>
+        <div class="card-title">The Outlast Trials</div>
+        <div class="card-price">
+          <span class="original-price">¥136</span>
+          <span class="final-price">¥41</span>
+        </div>
+        <a href="https://store.steampowered.com/app/1304930/" target="_blank" class="buy-btn">前往 Steam 购买</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://steamcdn-a.akamaihd.net/steam/apps/275850/header.jpg?t=1502463347", "https://steamcdn-a.akamaihd.net/steam/apps/275850/capsule_231x87.jpg?t=1502463347", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/275850/header.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/275850/capsule_231x87.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/275850/capsule_616x353.jpg"]'>
+        <img class="card-img" src="https://steamcdn-a.akamaihd.net/steam/apps/275850/header.jpg?t=1502463347" alt="No Man's Sky 无人深空" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+          <span class="discount-badge good">-60%</span>
+        </div>
+        <div class="card-title">No Man's Sky 无人深空</div>
+        <div class="card-price">
+          <span class="original-price">¥175</span>
+          <span class="final-price">¥70</span>
+        </div>
+        <a href="https://store.steampowered.com/app/275850/" target="_blank" class="buy-btn">前往 Steam 购买</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3240220/header_schinese.jpg?t=1740681472", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/3240220/header.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/3240220/capsule_231x87.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/3240220/capsule_616x353.jpg"]'>
+        <img class="card-img" src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3240220/header_schinese.jpg?t=1740681472" alt="Grand Theft Auto V 增强版" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+          <span class="discount-badge good">-50%</span>
+        </div>
+        <div class="card-title">Grand Theft Auto V 增强版</div>
+        <div class="card-price">
+          <span class="original-price">¥149</span>
+          <span class="final-price">¥74</span>
+        </div>
+        <a href="https://store.steampowered.com/app/3240220/" target="_blank" class="buy-btn">前往 Steam 购买</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://cdn.max-c.com/heybox/game/header/753640_sSEFO.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/753640/header.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/753640/capsule_231x87.jpg", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/753640/capsule_616x353.jpg"]'>
+        <img class="card-img" src="https://cdn.max-c.com/heybox/game/header/753640_sSEFO.jpg" alt="Outer Wilds" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+          <span class="discount-badge good">-50%</span>
+        </div>
+        <div class="card-title">Outer Wilds</div>
+        <div class="card-price">
+          <span class="original-price">¥95</span>
+          <span class="final-price">¥48</span>
+        </div>
+        <a href="https://store.steampowered.com/app/753640/" target="_blank" class="buy-btn">前往 Steam 购买</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 近期火爆新游 -->
+<section class="section" id="new-hot">
+  <h2 class="section-title">🚀 近期火爆新游推荐</h2>
+  <div class="game-grid">
+    
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='[""]'>
+        <img class="card-img" src="" alt="极限竞速：地平线6" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+        </div>
+        <div class="card-title">极限竞速：地平线6</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">舞台首次搬到日本，550+真实车辆，系列最大地图</p>
+        <div class="card-price">
+          <span class="final-price">¥298</span>
+        </div>
+        <p style="font-size:0.8rem;color:#f39c12;margin-top:0.3rem;">🔥 5月19日发售 | 预购进行中</p>
+        <a href="https://store.steampowered.com/app/2483190/" target="_blank" class="buy-btn">查看详情</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='[""]'>
+        <img class="card-img" src="" alt="Subnautica 2：异星水域" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+        </div>
+        <div class="card-title">Subnautica 2：异星水域</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">深海生存神作续集，首次支持4人联机合作</p>
+        <div class="card-price">
+          <span class="final-price">¥108</span>
+        </div>
+        <p style="font-size:0.8rem;color:#f39c12;margin-top:0.3rem;">✅ 5月14日已发售 | 抢先体验</p>
+        <a href="https://store.steampowered.com/app/1962700/" target="_blank" class="buy-btn">查看详情</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='[""]'>
+        <img class="card-img" src="" alt="007 初露锋芒" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+        </div>
+        <div class="card-title">007 初露锋芒</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">詹姆斯·邦德起源故事，IO Interactive 制作</p>
+        <div class="card-price">
+          <span class="final-price">¥298</span>
+        </div>
+        <p style="font-size:0.8rem;color:#f39c12;margin-top:0.3rem;">🔥 5月27日发售 | 预购进行中</p>
+        <a href="https://store.steampowered.com/app/3768760/" target="_blank" class="buy-btn">查看详情</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='[""]'>
+        <img class="card-img" src="" alt="深岩银河：异动核心" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+        </div>
+        <div class="card-title">深岩银河：异动核心</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">深岩银河系列轻 Rogue 衍生作，四人合作挖矿打怪</p>
+        <div class="card-price">
+          <span class="final-price">¥108</span>
+        </div>
+        <p style="font-size:0.8rem;color:#f39c12;margin-top:0.3rem;">✅ 5月20日已发售 | 抢先体验</p>
+        <a href="https://store.steampowered.com/app/2605790/" target="_blank" class="buy-btn">查看详情</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='[""]'>
+        <img class="card-img" src="" alt="8020号指令" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+        </div>
+        <div class="card-title">8020号指令</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">赛博朋克潜行游戏，扮演黑客入侵企业网络</p>
+        <div class="card-price">
+          <span class="final-price">¥88</span>
+        </div>
+        <p style="font-size:0.8rem;color:#f39c12;margin-top:0.3rem;">✅ 5月15日已发售</p>
+        <a href="https://store.steampowered.com/app/2255370/" target="_blank" class="buy-btn">查看详情</a>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='[""]'>
+        <img class="card-img" src="" alt="帕拉人生" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag steam">Steam</span>
+        </div>
+        <div class="card-title">帕拉人生</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">模拟人生最强竞品，超高自由度的生活模拟</p>
+        <div class="card-price">
+          <span class="final-price">¥136</span>
+        </div>
+        <p style="font-size:0.8rem;color:#f39c12;margin-top:0.3rem;">🔥 5月25日发售 | 抢先体验</p>
+        <a href="https://store.steampowered.com/app/1118520/" target="_blank" class="buy-btn">查看详情</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 三平台比价 -->
+<section class="section" id="compare">
+  <h2 class="section-title">💰 三平台比价（Steam / PSN 港服 / Switch 港服）</h2>
+  <table class="price-compare">
+    <thead>
+      <tr>
+        <th>游戏</th>
+        <th>Steam 国区</th>
+        <th>PS Store 港服</th>
+        <th>Switch eShop 港服</th>
+        <th>推荐平台</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+      <tr>
+        <td><strong>全面战争：战锤3</strong></td>
+        <td>¥45 <small style="color:#f39c12;">(-85%)</small></td>
+        <td>未知 None</td>
+        <td>HK$468</td>
+        <td><span style="color:#00d4ff;font-weight:600;">PC (最便宜)</span></td>
+      </tr>
+
+      <tr>
+        <td><strong>底特律：化身为人</strong></td>
+        <td>¥27 <small style="color:#f39c12;">(-80%)</small></td>
+        <td>未知 None</td>
+        <td>HK$198</td>
+        <td><span style="color:#00d4ff;font-weight:600;">PC (最便宜)</span></td>
+      </tr>
+
+      <tr>
+        <td><strong>Kenshi</strong></td>
+        <td>¥25 <small style="color:#f39c12;">(-72%)</small></td>
+        <td>未知 None</td>
+        <td>无</td>
+        <td><span style="color:#00d4ff;font-weight:600;">PC (最便宜)</span></td>
+      </tr>
+
+      <tr>
+        <td><strong>Warhammer 40,000: 星际战士2</strong></td>
+        <td>¥75 <small style="color:#f39c12;">(-70%)</small></td>
+        <td>未知 None</td>
+        <td>HK$568</td>
+        <td><span style="color:#00d4ff;font-weight:600;">PC (最便宜)</span></td>
+      </tr>
+
+      <tr>
+        <td><strong>The Outlast Trials</strong></td>
+        <td>¥41 <small style="color:#f39c12;">(-70%)</small></td>
+        <td>未知 None</td>
+        <td>HK$328</td>
+        <td><span style="color:#00d4ff;font-weight:600;">PC (最便宜)</span></td>
+      </tr>
+
+      <tr>
+        <td><strong>No Man's Sky 无人深空</strong></td>
+        <td>¥70 <small style="color:#f39c12;">(-60%)</small></td>
+        <td>未知 None</td>
+        <td>HK$398</td>
+        <td><span style="color:#00d4ff;font-weight:600;">PC (最便宜)</span></td>
+      </tr>
+
+      <tr>
+        <td><strong>Grand Theft Auto V 增强版</strong></td>
+        <td>¥74 <small style="color:#f39c12;">(-50%)</small></td>
+        <td>未知 None</td>
+        <td>HK$468</td>
+        <td><span style="color:#00d4ff;font-weight:600;">PC (最便宜)</span></td>
+      </tr>
+
+      <tr>
+        <td><strong>Outer Wilds</strong></td>
+        <td>¥48 <small style="color:#f39c12;">(-50%)</small></td>
+        <td>未知 None</td>
+        <td>HK$238</td>
+        <td><span style="color:#00d4ff;font-weight:600;">PC (最便宜)</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 即将发售 -->
+<section class="section" id="upcoming">
+  <h2 class="section-title">📅 即将发售</h2>
+  <p style="color:#667788;font-size:0.85rem;margin-top:-1rem;margin-bottom:1.5rem;">数据来源 Steam 热门即将推出，价格以官方公布为准</p>
+  <div class="game-grid">
+    
+  </div>
+</section>
+
+<!-- PS5实体盘 -->
+<section class="section" id="physical">
+  <h2 class="section-title">💿 PS5实体盘推荐</h2>
+  <div class="game-grid">
+    
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://image.api.playstation.com/vulcan/ap/rnd/202207/1212/4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d.png"]'>
+        <img class="card-img" src="https://image.api.playstation.com/vulcan/ap/rnd/202207/1212/4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d.png" alt="战神：诸神黄昏" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag ps">PS5</span>
+          <span class="platform-tag physical">实体盘</span>
+        </div>
+        <div class="card-title">战神：诸神黄昏</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">奎托斯北欧神话终章，年度最佳游戏</p>
+        <div class="card-price">
+          <span class="final-price">HK$398</span>
+        </div>
+        <div class="buy-btn" style="background: #333; color: #aaa; cursor: default;">实体盘价格</div>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://image.api.playstation.com/vulcan/ap/rnd/202305/1212/5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e.png"]'>
+        <img class="card-img" src="https://image.api.playstation.com/vulcan/ap/rnd/202305/1212/5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e.png" alt="漫威蜘蛛侠2" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag ps">PS5</span>
+          <span class="platform-tag physical">实体盘</span>
+        </div>
+        <div class="card-title">漫威蜘蛛侠2</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">双蛛同框，纽约市开放世界</p>
+        <div class="card-price">
+          <span class="final-price">HK$468</span>
+        </div>
+        <div class="buy-btn" style="background: #333; color: #aaa; cursor: default;">实体盘价格</div>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://image.api.playstation.com/vulcan/ap/rnd/202303/0714/6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f.png"]'>
+        <img class="card-img" src="https://image.api.playstation.com/vulcan/ap/rnd/202303/0714/6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f.png" alt="最终幻想 XVI" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag ps">PS5</span>
+          <span class="platform-tag physical">实体盘</span>
+        </div>
+        <div class="card-title">最终幻想 XVI</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">黑暗幻想风格，召唤兽大战</p>
+        <div class="card-price">
+          <span class="final-price">HK$468</span>
+        </div>
+        <div class="buy-btn" style="background: #333; color: #aaa; cursor: default;">实体盘价格</div>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <div class="card-img-wrap" data-fallbacks='["https://image.api.playstation.com/vulcan/ap/rnd/202212/1212/7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a.png"]'>
+        <img class="card-img" src="https://image.api.playstation.com/vulcan/ap/rnd/202212/1212/7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a.png" alt="霍格沃茨之遗" data-fallback-index="0" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+        <div class="card-img-fallback hidden">🎮</div>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="platform-tag ps">PS5</span>
+          <span class="platform-tag physical">实体盘</span>
+        </div>
+        <div class="card-title">霍格沃茨之遗</div>
+        <p style="font-size:0.85rem;color:#8899aa;margin-bottom:0.5rem;">哈利波特开放世界RPG</p>
+        <div class="card-price">
+          <span class="final-price">HK$398</span>
+        </div>
+        <div class="buy-btn" style="background: #333; color: #aaa; cursor: default;">实体盘价格</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 页脚 -->
+<footer class="footer">
+  <p>© 2026 Game Deals Hub | 数据自动更新，每日 02:00 刷新</p>
+  <p style="margin-top:0.5rem;font-size:0.75rem;color:#445566;">
+    本页面仅作信息展示，购买请前往各平台官方商店。价格以各平台实时显示为准。
+  </p>
+</footer>
+
+<!-- 图片灯箱 -->
+<div class="lightbox" id="lightbox">
+  <button class="close-btn" onclick="closeLightbox()">×</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script>
+// 图片加载失败处理
+function handleImageError(img) {
+  const wrap = img.parentElement;
+  const fallback = wrap.querySelector('.card-img-fallback');
+  const fallbackUrls = wrap.dataset.fallbacks ? JSON.parse(wrap.dataset.fallbacks) : [];
+  const currentIndex = parseInt(img.dataset.fallbackIndex || '0');
+  
+  if (currentIndex < fallbackUrls.length - 1) {
+    // 尝试下一个回退 URL
+    img.dataset.fallbackIndex = currentIndex + 1;
+    img.src = fallbackUrls[currentIndex + 1];
+    img.style.display = 'block';
+    fallback.classList.add('hidden');
+  } else {
+    // 所有回退都失败，显示 fallback 图标
+    img.style.display = 'none';
+    fallback.classList.remove('hidden');
+  }
+}
+
+// 图片灯箱
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('active');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+}
+// 点击背景关闭
+document.getElementById('lightbox').addEventListener('click', function(e) {
+  if (e.target === this) closeLightbox();
+});
+
+// 移动端触摸优化
+document.addEventListener('touchstart', function() {}, {passive: true});
+</script>
+</body>
+</html>
